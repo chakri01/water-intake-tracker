@@ -188,6 +188,27 @@ export default function UserDetail() {
           <div className="w-20"></div>
         </div>
 
+        {/* Quick User Navigation */}
+        <Card className="mb-6 bg-white">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+              <span className="text-sm text-muted-foreground whitespace-nowrap mr-2">Quick Switch:</span>
+              {allUsers.map((u) => (
+                <Button
+                  key={u._id}
+                  variant={u._id === userId ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => router.push(`/user/${u._id}`)}
+                  style={u._id === userId ? { backgroundColor: u.color } : {}}
+                  className="whitespace-nowrap"
+                >
+                  {u.name}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Today's Date */}
         <Card className="mb-6 bg-white">
           <CardContent className="pt-6 text-center">
