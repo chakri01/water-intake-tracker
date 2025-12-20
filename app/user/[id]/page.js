@@ -26,7 +26,6 @@ export default function UserDetail() {
   useEffect(() => {
     if (userId) {
       loadUserData();
-      loadAllUsers();
     }
   }, [userId]);
 
