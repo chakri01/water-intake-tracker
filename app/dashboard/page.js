@@ -89,8 +89,7 @@ export default function Dashboard() {
             return (
               <Card 
                 key={user._id} 
-                className="cursor-pointer hover:shadow-lg transition-shadow bg-white"
-                onClick={() => handleUserClick(user._id)}
+                className="bg-white hover:shadow-lg transition-shadow"
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
@@ -101,7 +100,7 @@ export default function Dashboard() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     <div className="relative h-6 bg-gray-200 rounded-full overflow-hidden">
                       <div 
                         className="absolute h-full transition-all duration-500 rounded-full"
@@ -119,6 +118,13 @@ export default function Dashboard() {
                         )}
                       </div>
                     </div>
+                    <Button 
+                      onClick={() => handleUserClick(user._id)}
+                      className="w-full"
+                      style={{ backgroundColor: user.color }}
+                    >
+                      View {user.name}'s Details
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
