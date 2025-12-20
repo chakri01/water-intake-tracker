@@ -80,12 +80,40 @@ export default function Dashboard() {
             <ArrowLeft className="w-4 h-4" />
             Back
           </Button>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <Droplets className="w-6 h-6 text-blue-500" />
-            Dashboard
-          </h1>
+            <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          </div>
           <div className="w-20"></div>
         </div>
+
+        {/* Toggle: Dashboard / My Progress */}
+        <Card className="mb-6 bg-white/60 backdrop-blur">
+          <CardContent className="pt-6">
+            <div className="flex justify-center gap-2">
+              <Button 
+                variant="default"
+                className="min-w-[140px]"
+              >
+                <Droplets className="w-4 h-4 mr-2" />
+                Dashboard
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={handleGoToMyProgress}
+                className="min-w-[140px]"
+              >
+                <User className="w-4 h-4 mr-2" />
+                My Progress
+              </Button>
+            </div>
+            {currentUserName && (
+              <p className="text-center text-sm text-muted-foreground mt-3">
+                Logged in as <span className="font-semibold">{currentUserName}</span>
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Today's Date */}
         <Card className="mb-6 bg-white/60 backdrop-blur">
