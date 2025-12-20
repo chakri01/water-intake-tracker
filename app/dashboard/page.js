@@ -33,6 +33,15 @@ export default function Dashboard() {
       const response = await fetch('/api/today-intake');
       const data = await response.json();
       setUsers(data);
+      
+      // Find current user name
+      const userId = localStorage.getItem('currentUser');
+      if (userId) {
+        const user = data.find(u => u._id === userId);
+        if (user) {
+          setCurrentUserName(user.name);
+        }
+      }
     } catch (error) {
       console.error('Error loading dashboard:', error);
     } finally {
