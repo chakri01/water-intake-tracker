@@ -15,6 +15,7 @@ export default function UserDetail() {
   const userId = params.id;
 
   const [user, setUser] = useState(null);
+  const [allUsers, setAllUsers] = useState([]);
   const [todayIntake, setTodayIntake] = useState(0);
   const [sliderValue, setSliderValue] = useState(0);
   const [chartData, setChartData] = useState([]);
