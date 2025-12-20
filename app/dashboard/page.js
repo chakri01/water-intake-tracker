@@ -53,8 +53,10 @@ export default function Dashboard() {
     return Math.min((intake / goal) * 100, 100);
   };
 
-  const handleUserClick = (userId) => {
-    router.push(`/user/${userId}`);
+  const handleGoToMyProgress = () => {
+    if (currentUserId) {
+      router.push(`/user/${currentUserId}`);
+    }
   };
 
   if (loading) {
