@@ -171,7 +171,7 @@ export default function UserDetail() {
         <div className="flex items-center justify-between mb-6">
           <Button 
             variant="ghost" 
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push('/')}
             className="gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -181,23 +181,25 @@ export default function UserDetail() {
           <div className="w-20"></div>
         </div>
 
-        {/* Quick User Navigation */}
+        {/* Toggle: Dashboard / My Progress */}
         <Card className="mb-6 bg-white">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-2 overflow-x-auto pb-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap mr-2">Quick Switch:</span>
-              {allUsers.map((u) => (
-                <Button
-                  key={u._id}
-                  variant={u._id === userId ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => router.push(`/user/${u._id}`)}
-                  style={u._id === userId ? { backgroundColor: u.color } : {}}
-                  className="whitespace-nowrap"
-                >
-                  {u.name}
-                </Button>
-              ))}
+            <div className="flex justify-center gap-2">
+              <Button 
+                variant="outline"
+                onClick={() => router.push('/dashboard')}
+                className="min-w-[140px]"
+              >
+                <Droplets className="w-4 h-4 mr-2" />
+                Dashboard
+              </Button>
+              <Button 
+                variant="default"
+                className="min-w-[140px]"
+              >
+                <User className="w-4 h-4 mr-2" />
+                My Progress
+              </Button>
             </div>
           </CardContent>
         </Card>
