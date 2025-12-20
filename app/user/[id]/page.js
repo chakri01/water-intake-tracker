@@ -64,6 +64,16 @@ export default function UserDetail() {
     }
   };
 
+  const loadAllUsers = async () => {
+    try {
+      const response = await fetch('/api/users');
+      const data = await response.json();
+      setAllUsers(data);
+    } catch (error) {
+      console.error('Error loading all users:', error);
+    }
+  };
+
   const loadChartData = async () => {
     try {
       const endDate = new Date();
