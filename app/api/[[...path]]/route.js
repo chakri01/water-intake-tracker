@@ -1,104 +1,189 @@
-import { MongoClient } from 'mongodb'
-import { v4 as uuidv4 } from 'uuid'
-import { NextResponse } from 'next/server'
+import { MongoClient, ObjectId } from 'mongodb';
+import { NextResponse } from 'next/server';
 
-// MongoDB connection
-let client
-let db
+const uri = process.env.MONGO_URL;
+let cachedClient = null;
 
-async function connectToMongo() {
-  if (!client) {
-    client = new MongoClient(process.env.MONGO_URL)
-    await client.connect()
-    db = client.db(process.env.DB_NAME)
+async function connectToDatabase() {
+  if (cachedClient) {
+    return cachedClient;
   }
-  return db
+  const client = new MongoClient(uri);
+  await client.connect();
+  cachedClient = client;
+  return client;
 }
 
-// Helper function to handle CORS
-function handleCORS(response) {
-  response.headers.set('Access-Control-Allow-Origin', process.env.CORS_ORIGINS || '*')
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-  response.headers.set('Access-Control-Allow-Credentials', 'true')
-  return response
+// Seed default users
+async function seedUsers(db) {
+  const users = [
+    { name: 'Nikhil', dailyGoal: 3000, color: '#3B82F6' },
+    { name: 'Karthik', dailyGoal: 3000, color: '#10B981' },
+    { name: 'Prabhath', dailyGoal: 3000, color: '#F59E0B' },
+    { name: 'Samson', dailyGoal: 3000, color: '#EF4444' },
+    { name: 'Chakri', dailyGoal: 3000, color: '#8B5CF6' },
+    { name: 'Praveen', dailyGoal: 3000, color: '#EC4899' }
+  ];
+
+  const usersCollection = db.collection('users');
+  const existingCount = await usersCollection.countDocuments();
+  
+  if (existingCount === 0) {
+    await usersCollection.insertMany(users);
+    return { message: 'Users seeded successfully', count: users.length };
+  }
+  
+  return { message: 'Users already exist', count: existingCount };
 }
 
-// OPTIONS handler for CORS
-export async function OPTIONS() {
-  return handleCORS(new NextResponse(null, { status: 200 }))
-}
-
-// Route handler function
-async function handleRoute(request, { params }) {
-  const { path = [] } = params
-  const route = `/${path.join('/')}`
-  const method = request.method
-
+export async function GET(request) {
   try {
-    const db = await connectToMongo()
+    const client = await connectToDatabase();
+    const db = client.db('water_tracker');
+    const url = new URL(request.url);
+    const path = url.pathname.replace('/api/', '');
 
-    // Root endpoint - GET /api/root (since /api/ is not accessible with catch-all)
-    if (route === '/root' && method === 'GET') {
-      return handleCORS(NextResponse.json({ message: "Hello World" }))
-    }
-    // Root endpoint - GET /api/root (since /api/ is not accessible with catch-all)
-    if (route === '/' && method === 'GET') {
-      return handleCORS(NextResponse.json({ message: "Hello World" }))
+    // Seed users endpoint
+    if (path === 'seed') {
+      const result = await seedUsers(db);
+      return NextResponse.json(result);
     }
 
-    // Status endpoints - POST /api/status
-    if (route === '/status' && method === 'POST') {
-      const body = await request.json()
-      
-      if (!body.client_name) {
-        return handleCORS(NextResponse.json(
-          { error: "client_name is required" }, 
-          { status: 400 }
-        ))
+    // Get all users
+    if (path === 'users') {
+      const users = await db.collection('users').find({}).toArray();
+      return NextResponse.json(users);
+    }
+
+    // Get specific user
+    if (path.startsWith('users/')) {
+      const userId = path.split('/')[1];
+      const user = await db.collection('users').findOne({ _id: new ObjectId(userId) });
+      if (!user) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+      return NextResponse.json(user);
+    }
+
+    // Get water logs
+    if (path === 'water-logs') {
+      const userId = url.searchParams.get('userId');
+      const startDate = url.searchParams.get('startDate');
+      const endDate = url.searchParams.get('endDate');
+
+      const query = {};
+      if (userId) {
+        query.userId = userId;
+      }
+      if (startDate || endDate) {
+        query.timestamp = {};
+        if (startDate) query.timestamp.$gte = new Date(startDate);
+        if (endDate) query.timestamp.$lte = new Date(endDate);
       }
 
-      const statusObj = {
-        id: uuidv4(),
-        client_name: body.client_name,
-        timestamp: new Date()
-      }
-
-      await db.collection('status_checks').insertOne(statusObj)
-      return handleCORS(NextResponse.json(statusObj))
+      const logs = await db.collection('water_logs').find(query).sort({ timestamp: -1 }).toArray();
+      return NextResponse.json(logs);
     }
 
-    // Status endpoints - GET /api/status
-    if (route === '/status' && method === 'GET') {
-      const statusChecks = await db.collection('status_checks')
-        .find({})
-        .limit(1000)
-        .toArray()
+    // Get today's intake for all users
+    if (path === 'today-intake') {
+      const users = await db.collection('users').find({}).toArray();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
 
-      // Remove MongoDB's _id field from response
-      const cleanedStatusChecks = statusChecks.map(({ _id, ...rest }) => rest)
-      
-      return handleCORS(NextResponse.json(cleanedStatusChecks))
+      const intakeData = await Promise.all(
+        users.map(async (user) => {
+          const logs = await db.collection('water_logs')
+            .find({
+              userId: user._id.toString(),
+              timestamp: { $gte: today, $lt: tomorrow }
+            })
+            .toArray();
+          
+          const total = logs.reduce((sum, log) => sum + log.amount, 0);
+          return {
+            ...user,
+            todayIntake: total
+          };
+        })
+      );
+
+      return NextResponse.json(intakeData);
     }
 
-    // Route not found
-    return handleCORS(NextResponse.json(
-      { error: `Route ${route} not found` }, 
-      { status: 404 }
-    ))
-
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
   } catch (error) {
-    console.error('API Error:', error)
-    return handleCORS(NextResponse.json(
-      { error: "Internal server error" }, 
-      { status: 500 }
-    ))
+    console.error('GET Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// Export all HTTP methods
-export const GET = handleRoute
-export const POST = handleRoute
-export const PUT = handleRoute
-export const DELETE = handleRoute
-export const PATCH = handleRoute
+export async function POST(request) {
+  try {
+    const client = await connectToDatabase();
+    const db = client.db('water_tracker');
+    const url = new URL(request.url);
+    const path = url.pathname.replace('/api/', '');
+    const body = await request.json();
+
+    // Log water intake
+    if (path === 'water-logs') {
+      const { userId, amount } = body;
+      if (!userId || !amount) {
+        return NextResponse.json({ error: 'userId and amount are required' }, { status: 400 });
+      }
+
+      const log = {
+        userId,
+        amount: parseInt(amount),
+        timestamp: new Date()
+      };
+
+      const result = await db.collection('water_logs').insertOne(log);
+      return NextResponse.json({ ...log, _id: result.insertedId });
+    }
+
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  } catch (error) {
+    console.error('POST Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PUT(request) {
+  try {
+    const client = await connectToDatabase();
+    const db = client.db('water_tracker');
+    const url = new URL(request.url);
+    const path = url.pathname.replace('/api/', '');
+    const body = await request.json();
+
+    // Update user's daily goal
+    if (path.startsWith('users/')) {
+      const userId = path.split('/')[1];
+      const { dailyGoal } = body;
+      
+      if (!dailyGoal) {
+        return NextResponse.json({ error: 'dailyGoal is required' }, { status: 400 });
+      }
+
+      const result = await db.collection('users').updateOne(
+        { _id: new ObjectId(userId) },
+        { $set: { dailyGoal: parseInt(dailyGoal) } }
+      );
+
+      if (result.matchedCount === 0) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  } catch (error) {
+    console.error('PUT Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
