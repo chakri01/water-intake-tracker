@@ -15,6 +15,13 @@ export default function Dashboard() {
   const router = useRouter();
 
   useEffect(() => {
+    // Get current user from localStorage
+    const userId = localStorage.getItem('currentUser');
+    if (!userId) {
+      router.push('/');
+      return;
+    }
+    setCurrentUserId(userId);
     loadDashboardData();
     // Refresh every 30 seconds
     const interval = setInterval(loadDashboardData, 30000);
