@@ -1,45 +1,54 @@
-import { MongoClient, ObjectId } from 'mongodb';
 import { NextResponse } from 'next/server';
+import { Pool } from 'pg';
 
-const uri = process.env.MONGO_URL;
-let cachedClient = null;
+// Create a connection pool for Postgres
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
 
-async function connectToDatabase() {
-  if (cachedClient) {
-    return cachedClient;
-  }
-  const client = new MongoClient(uri);
-  await client.connect();
-  cachedClient = client;
-  return client;
+// Get database connection
+async function getConnection() {
+  return pool;
 }
 
 // Seed default users
-async function seedUsers(db) {
+async function seedUsers(pool) {
   const users = [
-    { name: 'Nikhil', dailyGoal: 3000, color: '#3B82F6' },
-    { name: 'Karthik', dailyGoal: 3000, color: '#10B981' },
-    { name: 'Prabhath', dailyGoal: 3000, color: '#F59E0B' },
-    { name: 'Samson', dailyGoal: 3000, color: '#EF4444' },
-    { name: 'Chakri', dailyGoal: 3000, color: '#8B5CF6' },
-    { name: 'Praveen', dailyGoal: 3000, color: '#EC4899' }
+    { name: 'Nikhil', daily_goal_ml: 3000 },
+    { name: 'Karthik', daily_goal_ml: 3000 },
+    { name: 'Prabhath', daily_goal_ml: 3000 },
+    { name: 'Samson', daily_goal_ml: 3000 },
+    { name: 'Chakri', daily_goal_ml: 3000 },
+    { name: 'Praveen', daily_goal_ml: 3000 }
   ];
 
-  const usersCollection = db.collection('users');
-  const existingCount = await usersCollection.countDocuments();
-  
-  if (existingCount === 0) {
-    await usersCollection.insertMany(users);
-    return { message: 'Users seeded successfully', count: users.length };
+  try {
+    // Check if users already exist
+    const result = await pool.query('SELECT COUNT(*) as count FROM users');
+    const count = parseInt(result.rows[0].count);
+
+    if (count === 0) {
+      // Insert users
+      for (const user of users) {
+        await pool.query(
+          'INSERT INTO users (name, daily_goal_ml) VALUES ($1, $2)',
+          [user.name, user.daily_goal_ml]
+        );
+      }
+      return { message: 'Users seeded successfully', count: users.length };
+    }
+
+    return { message: 'Users already exist', count };
+  } catch (error) {
+    console.error('Seed error:', error);
+    throw error;
   }
-  
-  return { message: 'Users already exist', count: existingCount };
 }
 
 export async function GET(request) {
+  const db = await getConnection();
   try {
-    const client = await connectToDatabase();
-    const db = client.db('water_tracker');
     const url = new URL(request.url);
     const path = url.pathname.replace('/api/', '');
 
@@ -51,18 +60,30 @@ export async function GET(request) {
 
     // Get all users
     if (path === 'users') {
-      const users = await db.collection('users').find({}).toArray();
+      const result = await db.query('SELECT * FROM users ORDER BY created_at DESC');
+      const users = result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        dailyGoal: row.daily_goal_ml,
+        createdAt: row.created_at
+      }));
       return NextResponse.json(users);
     }
 
     // Get specific user
     if (path.startsWith('users/')) {
       const userId = path.split('/')[1];
-      const user = await db.collection('users').findOne({ _id: new ObjectId(userId) });
-      if (!user) {
+      const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+      if (result.rows.length === 0) {
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
-      return NextResponse.json(user);
+      const user = result.rows[0];
+      return NextResponse.json({
+        id: user.id,
+        name: user.name,
+        dailyGoal: user.daily_goal_ml,
+        createdAt: user.created_at
+      });
     }
 
     // Get water logs
@@ -71,45 +92,59 @@ export async function GET(request) {
       const startDate = url.searchParams.get('startDate');
       const endDate = url.searchParams.get('endDate');
 
-      const query = {};
+      let query = 'SELECT * FROM water_logs WHERE 1=1';
+      const params = [];
+
       if (userId) {
-        query.userId = userId;
-      }
-      if (startDate || endDate) {
-        query.timestamp = {};
-        if (startDate) query.timestamp.$gte = new Date(startDate);
-        if (endDate) query.timestamp.$lte = new Date(endDate);
+        params.push(userId);
+        query += ` AND user_id = $${params.length}`;
       }
 
-      const logs = await db.collection('water_logs').find(query).sort({ timestamp: -1 }).toArray();
+      if (startDate) {
+        params.push(new Date(startDate));
+        query += ` AND logged_at >= $${params.length}`;
+      }
+
+      if (endDate) {
+        params.push(new Date(endDate));
+        query += ` AND logged_at <= $${params.length}`;
+      }
+
+      query += ' ORDER BY logged_at DESC';
+
+      const result = await db.query(query, params);
+      const logs = result.rows.map(row => ({
+        id: row.id,
+        userId: row.user_id,
+        amountMl: row.amount_ml,
+        loggedAt: row.logged_at
+      }));
       return NextResponse.json(logs);
     }
 
     // Get today's intake for all users
     if (path === 'today-intake') {
-      const users = await db.collection('users').find({}).toArray();
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      const intakeData = await Promise.all(
-        users.map(async (user) => {
-          const logs = await db.collection('water_logs')
-            .find({
-              userId: user._id.toString(),
-              timestamp: { $gte: today, $lt: tomorrow }
-            })
-            .toArray();
-          
-          const total = logs.reduce((sum, log) => sum + log.amount, 0);
-          return {
-            ...user,
-            todayIntake: total
-          };
-        })
-      );
+      const result = await db.query(`
+        SELECT u.*, COALESCE(SUM(w.amount_ml), 0) as today_intake
+        FROM users u
+        LEFT JOIN water_logs w ON u.id = w.user_id 
+          AND w.logged_at >= $1 AND w.logged_at < $2
+        GROUP BY u.id
+        ORDER BY u.created_at DESC
+      `, [today, tomorrow]);
 
+      const intakeData = result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        dailyGoal: row.daily_goal_ml,
+        todayIntake: parseInt(row.today_intake) || 0,
+        createdAt: row.created_at
+      }));
       return NextResponse.json(intakeData);
     }
 
@@ -121,9 +156,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  const db = await getConnection();
   try {
-    const client = await connectToDatabase();
-    const db = client.db('water_tracker');
     const url = new URL(request.url);
     const path = url.pathname.replace('/api/', '');
     const body = await request.json();
@@ -132,17 +166,24 @@ export async function POST(request) {
     if (path === 'water-logs') {
       const { userId, amount } = body;
       if (!userId || !amount) {
-        return NextResponse.json({ error: 'userId and amount are required' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'userId and amount are required' },
+          { status: 400 }
+        );
       }
 
-      const log = {
-        userId,
-        amount: parseInt(amount),
-        timestamp: new Date()
-      };
+      const result = await db.query(
+        'INSERT INTO water_logs (user_id, amount_ml, logged_at) VALUES ($1, $2, NOW()) RETURNING *',
+        [userId, parseInt(amount)]
+      );
 
-      const result = await db.collection('water_logs').insertOne(log);
-      return NextResponse.json({ ...log, _id: result.insertedId });
+      const log = result.rows[0];
+      return NextResponse.json({
+        id: log.id,
+        userId: log.user_id,
+        amountMl: log.amount_ml,
+        loggedAt: log.logged_at
+      });
     }
 
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -153,9 +194,8 @@ export async function POST(request) {
 }
 
 export async function PUT(request) {
+  const db = await getConnection();
   try {
-    const client = await connectToDatabase();
-    const db = client.db('water_tracker');
     const url = new URL(request.url);
     const path = url.pathname.replace('/api/', '');
     const body = await request.json();
@@ -164,17 +204,20 @@ export async function PUT(request) {
     if (path.startsWith('users/')) {
       const userId = path.split('/')[1];
       const { dailyGoal } = body;
-      
+
       if (!dailyGoal) {
-        return NextResponse.json({ error: 'dailyGoal is required' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'dailyGoal is required' },
+          { status: 400 }
+        );
       }
 
-      const result = await db.collection('users').updateOne(
-        { _id: new ObjectId(userId) },
-        { $set: { dailyGoal: parseInt(dailyGoal) } }
+      const result = await db.query(
+        'UPDATE users SET daily_goal_ml = $1 WHERE id = $2 RETURNING *',
+        [parseInt(dailyGoal), userId]
       );
 
-      if (result.matchedCount === 0) {
+      if (result.rows.length === 0) {
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
 
