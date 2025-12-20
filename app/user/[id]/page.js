@@ -136,14 +136,19 @@ export default function UserDetail() {
 
   const handleUpdateGoal = async () => {
     try {
+      const goalValue = parseInt(newGoal);
       await fetch(`/api/users/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dailyGoal: parseInt(newGoal) })
+        body: JSON.stringify({ dailyGoal: goalValue })
       });
 
-      setUser({ ...user, dailyGoal: parseInt(newGoal) });
+      // Update local state
+      setUser({ ...user, dailyGoal: goalValue });
       setEditingGoal(false);
+      
+      // Reload user data to ensure consistency
+      await loadUserData();
     } catch (error) {
       console.error('Error updating goal:', error);
     }
