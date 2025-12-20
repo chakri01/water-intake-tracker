@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import { ArrowLeft, Plus, Settings } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, Droplets, User } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function UserDetail() {
@@ -15,7 +15,6 @@ export default function UserDetail() {
   const userId = params.id;
 
   const [user, setUser] = useState(null);
-  const [allUsers, setAllUsers] = useState([]);
   const [todayIntake, setTodayIntake] = useState(0);
   const [sliderValue, setSliderValue] = useState(0);
   const [chartData, setChartData] = useState([]);
