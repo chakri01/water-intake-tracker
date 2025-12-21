@@ -30,9 +30,12 @@ export default function Home() {
       
       // Then fetch users
       const response = await fetch('/api/users');
-      const data = await response.json();
-      setUsers(data);
-    } catch (error) {
+if (response.ok) {
+       const data = await response.json();
+       setUsers(Array.isArray(data) ? data : []);
+     } else {
+       setUsers([]);
+     }    } catch (error) {
       console.error('Error loading users:', error);
     } finally {
       setLoading(false);
@@ -77,7 +80,7 @@ export default function Home() {
               </SelectTrigger>
               <SelectContent>
                 {users.map((user) => (
-                  <SelectItem key={user._id} value={user._id}>
+                  <SelectItem key={user_id} value={user.id}>
                     {user.name}
                   </SelectItem>
                 ))}
