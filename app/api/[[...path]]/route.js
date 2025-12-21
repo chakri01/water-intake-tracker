@@ -6,6 +6,10 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
+// Validate DATABASE_URL is available
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL environment variable is not set');
+}
 
 // Get database connection
 async function getConnection() {
@@ -42,8 +46,7 @@ async function seedUsers(pool) {
     return { message: 'Users already exist', count };
   } catch (error) {
     console.error('Seed error:', error);
-    throw error;
-  }
+  return { message: 'Seed error', error: error.message };  }
 }
 
 export async function GET(request) {
