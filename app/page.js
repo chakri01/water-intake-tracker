@@ -26,8 +26,12 @@ export default function Home() {
   const loadUsers = async () => {
     try {
       // First seed users
-      await fetch('/api/seed');
-      
+// Attempt to seed users (ignore errors if it fails)
+     try {
+       await fetch('/api/seed');
+     } catch (err) {
+       console.warn('Seed endpoint failed:', err);
+     }      
       // Then fetch users
       const response = await fetch('/api/users');
 if (response.ok) {
