@@ -1,4 +1,5 @@
-'use client';
+87
+  'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -84,7 +85,7 @@ if (response.ok) {
               </SelectTrigger>
               <SelectContent>
                 {users.map((user) => (
-                  <SelectItem key={user_iduser.id} value={user.id}>
+                  <SelectItem key={user.id} value={user.id}>
                     {user.name}
                   </SelectItem>
                 ))}
