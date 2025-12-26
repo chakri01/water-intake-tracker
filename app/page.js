@@ -84,7 +84,7 @@ if (response.ok) {
               </SelectTrigger>
               <SelectContent>
                 {users.map((user) => (
-                  <SelectItem key={user_id} value={user.id}>
+                  <SelectItem key={user_iduser.id} value={user.id}>
                     {user.name}
                   </SelectItem>
                 ))}
